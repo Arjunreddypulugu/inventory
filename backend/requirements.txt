@@ -2,4 +2,5 @@ fastapi
 uvicorn
 sqlalchemy
 pymssql
-python-dotenv 
+python-dotenv
+pandas 
