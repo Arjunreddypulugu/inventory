@@ -1,12 +1,8 @@
 import streamlit as st
-import pyodbc
 import pandas as pd
 from streamlit.components.v1 import html
-import os
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
+import time
+from sqlalchemy import create_engine, text
 
 # Page config
 st.set_page_config(
@@ -15,7 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS for better styling
+# Custom CSS
 st.markdown("""
     <style>
     .stButton>button {
@@ -24,8 +20,22 @@ st.markdown("""
     .scanner-container {
         border: 2px solid #ddd;
         border-radius: 5px;
+        padding: 15px;
+        margin: 10px 0;
+        background-color: #f8f9fa;
+    }
+    .scanner-active {
+        border-color: #28a745;
+        background-color: #d4edda;
+    }
+    .scanned-result {
+        background-color: #e7f3ff;
+        border: 1px solid #b3d9ff;
+        border-radius: 5px;
         padding: 10px;
         margin: 10px 0;
+        font-family: monospace;
+        font-size: 14px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -34,14 +44,9 @@ st.markdown("""
 @st.cache_resource
 def init_connection():
     try:
-        conn = pyodbc.connect(
-            f"DRIVER={{{st.secrets['database']['driver']}}};"
-            f"SERVER={st.secrets['database']['db_server']};"
-            f"DATABASE={st.secrets['database']['db_database']};"
-            f"UID={st.secrets['database']['db_username']};"
-            f"PWD={st.secrets['database']['db_password']}"
-        )
-        return conn
+        connection_string = f"mssql+pymssql://{st.secrets['database']['db_username']}:{st.secrets['database']['db_password']}@{st.secrets['database']['db_server']}/{st.secrets['database']['db_database']}"
+        engine = create_engine(connection_string)
+        return engine
     except Exception as e:
         st.error(f"Database connection error: {str(e)}")
         return None
@@ -49,174 +54,436 @@ def init_connection():
 # Function to insert data into database
 def insert_inventory_data(data):
     try:
-        conn = init_connection()
-        if conn:
-            cursor = conn.cursor()
-            
-            # First check if SKU exists
-            check_query = f"""
+        engine = init_connection()
+        if engine:
+            # Check if SKU exists
+            check_query = text(f"""
             SELECT COUNT(*) FROM {st.secrets['database']['db_table']}
-            WHERE SKU = ?
-            """
-            cursor.execute(check_query, (data['sku'],))
-            sku_exists = cursor.fetchone()[0] > 0
+            WHERE SKU = :sku
+            """)
             
-            # Set is_repeated flag based on SKU existence
-            is_repeated = True if sku_exists else False
+            with engine.connect() as conn:
+                result = conn.execute(check_query, {"sku": data['sku']})
+                sku_exists = result.scalar() > 0
+                
+                # Insert the data
+                insert_query = text(f"""
+                INSERT INTO {st.secrets['database']['db_table']} 
+                (SKU, Manufacturer_Part_Number, Location, Quantity, Manufacturer, is_repeated)
+                VALUES (:sku, :mpn, :location, :quantity, :manufacturer, :is_repeated)
+                """)
+                
+                conn.execute(insert_query, {
+                    "sku": data['sku'],
+                    "mpn": data['mpn'],
+                    "location": data['location'],
+                    "quantity": data['quantity'],
+                    "manufacturer": data['manufacturer'],
+                    "is_repeated": sku_exists
+                })
+                conn.commit()
             
-            # Insert the data
-            insert_query = f"""
-            INSERT INTO {st.secrets['database']['db_table']} (SKU, Manufacturer_Part_Number, Location, Quantity, Manufacturer, is_repeated)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """
-            cursor.execute(insert_query, (
-                data['sku'],
-                data['mpn'],
-                data['location'],
-                data['quantity'],
-                data['manufacturer'],
-                is_repeated
-            ))
-            conn.commit()
-            
-            # Show appropriate message based on whether it's a duplicate
-            if is_repeated:
-                st.warning("This SKU already exists in the database. Marked as repeated.")
+            if sku_exists:
+                st.warning("⚠️ This SKU already exists in the database. Marked as repeated.")
             else:
-                st.success("New SKU added successfully!")
+                st.success("✅ New SKU added successfully!")
             return True
     except Exception as e:
-        st.error(f"Error inserting data: {str(e)}")
+        st.error(f"❌ Error inserting data: {str(e)}")
         return False
 
-# Barcode scanner HTML component
-def barcode_scanner_html(target_field):
-    return f"""
-    <div id="interactive" class="viewport"></div>
-    <script src="https://unpkg.com/quagga@0.12.1/dist/quagga.min.js"></script>
-    <script>
-        function initScanner() {{
-            Quagga.init({{
-                inputStream: {{
-                    name: "Live",
-                    type: "LiveStream",
-                    target: document.querySelector("#interactive"),
-                    constraints: {{
-                        facingMode: "environment"
-                    }},
-                }},
-                decoder: {{
-                    readers: ["code_128_reader", "ean_reader", "ean_8_reader", "code_39_reader", "upc_reader", "upc_e_reader"]
-                }}
-            }}, function(err) {{
-                if (err) {{
-                    console.error(err);
-                    return;
-                }}
-                Quagga.start();
-            }});
+# Barcode scanner component that returns the scanned value
+def barcode_scanner_component(key_suffix=""):
+    scanner_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script src="https://unpkg.com/quagga@0.12.1/dist/quagga.min.js"></script>
+        <style>
+            body {{
+                margin: 0;
+                padding: 10px;
+                font-family: Arial, sans-serif;
+            }}
+            #scanner {{
+                width: 100%;
+                height: 300px;
+                border: 2px solid #ddd;
+                border-radius: 5px;
+                position: relative;
+                background-color: #000;
+            }}
+            .controls {{
+                margin: 10px 0;
+                text-align: center;
+            }}
+            button {{
+                margin: 5px;
+                padding: 10px 20px;
+                font-size: 16px;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                font-weight: bold;
+            }}
+            .start-btn {{
+                background-color: #28a745;
+                color: white;
+            }}
+            .stop-btn {{
+                background-color: #dc3545;
+                color: white;
+            }}
+            .result {{
+                margin-top: 15px;
+                padding: 15px;
+                background-color: #e7f3ff;
+                border: 2px solid #007bff;
+                border-radius: 5px;
+                display: none;
+            }}
+            .result.show {{
+                display: block;
+            }}
+            .scanned-code {{
+                font-family: monospace;
+                font-size: 18px;
+                font-weight: bold;
+                color: #0056b3;
+                word-break: break-all;
+                margin: 10px 0;
+            }}
+            .status {{
+                margin: 10px 0;
+                padding: 10px;
+                border-radius: 5px;
+                text-align: center;
+                font-weight: bold;
+            }}
+            .status.success {{
+                background-color: #d4edda;
+                color: #155724;
+                border: 1px solid #c3e6cb;
+            }}
+            .status.error {{
+                background-color: #f8d7da;
+                color: #721c24;
+                border: 1px solid #f5c6cb;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="controls">
+            <button id="startBtn" class="start-btn" onclick="startScanner()">📷 Start Scanner</button>
+            <button id="stopBtn" class="stop-btn" onclick="stopScanner()" style="display:none;">⏹️ Stop Scanner</button>
+        </div>
+        
+        <div id="scanner"></div>
+        
+        <div id="status" class="status" style="display:none;"></div>
+        
+        <div id="result" class="result">
+            <h4>✅ Barcode Detected!</h4>
+            <div class="scanned-code" id="scannedCode"></div>
+            <div class="controls">
+                <button class="start-btn" onclick="useCode()">✅ Use This Code</button>
+                <button class="start-btn" onclick="scanAgain()">🔄 Scan Another</button>
+            </div>
+        </div>
 
-            Quagga.onDetected(function(result) {{
-                if (result.codeResult.code) {{
-                    // Send the scanned value to Streamlit
+        <script>
+            let scannerActive = false;
+            let lastScannedCode = '';
+
+            function showStatus(message, isError = false) {{
+                const status = document.getElementById('status');
+                status.textContent = message;
+                status.className = `status ${{isError ? 'error' : 'success'}}`;
+                status.style.display = 'block';
+                
+                setTimeout(() => {{
+                    status.style.display = 'none';
+                }}, 3000);
+            }}
+
+            function startScanner() {{
+                if (scannerActive) return;
+                
+                document.getElementById('startBtn').style.display = 'none';
+                document.getElementById('stopBtn').style.display = 'inline-block';
+                document.getElementById('result').classList.remove('show');
+                
+                showStatus('Initializing camera...');
+                
+                Quagga.init({{
+                    inputStream: {{
+                        name: "Live",
+                        type: "LiveStream",
+                        target: document.querySelector("#scanner"),
+                        constraints: {{
+                            width: 640,
+                            height: 480,
+                            facingMode: "environment"
+                        }},
+                    }},
+                    decoder: {{
+                        readers: [
+                            "code_128_reader", 
+                            "ean_reader", 
+                            "ean_8_reader", 
+                            "code_39_reader", 
+                            "upc_reader", 
+                            "upc_e_reader"
+                        ]
+                    }}
+                }}, function(err) {{
+                    if (err) {{
+                        console.error('Scanner initialization error:', err);
+                        showStatus('❌ Camera access denied or not available', true);
+                        resetButtons();
+                        return;
+                    }}
+                    
+                    showStatus('✅ Scanner ready - point camera at barcode');
+                    Quagga.start();
+                    scannerActive = true;
+                }});
+
+                Quagga.onDetected(function(result) {{
+                    const code = result.codeResult.code;
+                    if (code && code.length > 2) {{
+                        lastScannedCode = code;
+                        document.getElementById('scannedCode').textContent = code;
+                        document.getElementById('result').classList.add('show');
+                        showStatus('✅ Barcode detected successfully!');
+                        stopScanner();
+                    }}
+                }});
+            }}
+
+            function stopScanner() {{
+                if (scannerActive) {{
+                    Quagga.stop();
+                    scannerActive = false;
+                }}
+                resetButtons();
+            }}
+
+            function resetButtons() {{
+                document.getElementById('startBtn').style.display = 'inline-block';
+                document.getElementById('stopBtn').style.display = 'none';
+            }}
+
+            function useCode() {{
+                if (lastScannedCode) {{
+                    // Return the scanned code to Streamlit
                     window.parent.postMessage({{
-                        type: 'streamlit:setComponentValue',
-                        value: result.codeResult.code,
-                        target: '{target_field}'
+                        type: 'streamlit:componentData',
+                        data: lastScannedCode
                     }}, '*');
+                }}
+            }}
+
+            function scanAgain() {{
+                document.getElementById('result').classList.remove('show');
+                lastScannedCode = '';
+                startScanner();
+            }}
+
+            // Cleanup on page unload
+            window.addEventListener('beforeunload', function() {{
+                if (scannerActive) {{
                     Quagga.stop();
                 }}
             }});
-        }}
-
-        // Initialize scanner when component is loaded
-        window.addEventListener('load', initScanner);
-    </script>
+        </script>
+    </body>
+    </html>
     """
+    
+    # Return the HTML component and capture its return value
+    return html(scanner_html, height=500, key=f"barcode_scanner_{key_suffix}")
+
+# Initialize session state
+def init_session_state():
+    if 'sku_value' not in st.session_state:
+        st.session_state.sku_value = ""
+    if 'mpn_value' not in st.session_state:
+        st.session_state.mpn_value = ""
+    if 'scanner_mode' not in st.session_state:
+        st.session_state.scanner_mode = None  # None, 'sku', or 'mpn'
+    if 'last_scan_time' not in st.session_state:
+        st.session_state.last_scan_time = 0
 
 def main():
     st.title("📦 Inventory Management System")
+    
+    init_session_state()
 
-    # Initialize session state for barcode scanning
-    if 'scanned_sku' not in st.session_state:
-        st.session_state.scanned_sku = ""
-    if 'scanned_mpn' not in st.session_state:
-        st.session_state.scanned_mpn = ""
-
-    # Create form
-    with st.form("inventory_form"):
-        # SKU field with scanner
-        col1, col2 = st.columns([3, 1])
+    # Scanner mode handling
+    if st.session_state.scanner_mode == 'sku':
+        st.markdown("### 📷 Scanning SKU Barcode")
+        st.markdown('<div class="scanner-container scanner-active">', unsafe_allow_html=True)
+        
+        # Create scanner and get result
+        scanner_result = barcode_scanner_component("sku")
+        
+        # Check if we got a scanned result
+        if scanner_result:
+            st.session_state.sku_value = scanner_result
+            st.session_state.scanner_mode = None
+            st.success(f"✅ SKU scanned: {scanner_result}")
+            time.sleep(1)  # Brief pause to show success message
+            st.rerun()
+        
+        # Controls
+        col1, col2 = st.columns(2)
         with col1:
-            sku = st.text_input("SKU*", value=st.session_state.scanned_sku, key="sku_input")
+            if st.button("✅ Done", key="done_sku_scan"):
+                st.session_state.scanner_mode = None
+                st.rerun()
         with col2:
-            if st.button("📷 Scan SKU"):
-                st.session_state.show_sku_scanner = True
+            if st.button("❌ Cancel", key="cancel_sku_scan"):
+                st.session_state.scanner_mode = None
+                st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        return  # Don't show the form while scanning
 
-        # Manufacturer Part Number field with scanner
-        col3, col4 = st.columns([3, 1])
+    elif st.session_state.scanner_mode == 'mpn':
+        st.markdown("### 📷 Scanning MPN Barcode")
+        st.markdown('<div class="scanner-container scanner-active">', unsafe_allow_html=True)
+        
+        # Create scanner and get result
+        scanner_result = barcode_scanner_component("mpn")
+        
+        # Check if we got a scanned result
+        if scanner_result:
+            st.session_state.mpn_value = scanner_result
+            st.session_state.scanner_mode = None
+            st.success(f"✅ MPN scanned: {scanner_result}")
+            time.sleep(1)  # Brief pause to show success message
+            st.rerun()
+        
+        # Controls
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✅ Done", key="done_mpn_scan"):
+                st.session_state.scanner_mode = None
+                st.rerun()
+        with col2:
+            if st.button("❌ Cancel", key="cancel_mpn_scan"):
+                st.session_state.scanner_mode = None
+                st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        return  # Don't show the form while scanning
+
+    # Main form (only shown when not scanning)
+    st.markdown("### Add New Inventory Item")
+    
+    # Show scanned values if available
+    if st.session_state.sku_value:
+        st.markdown(f'<div class="scanned-result">📊 Current SKU: <strong>{st.session_state.sku_value}</strong></div>', 
+                   unsafe_allow_html=True)
+    
+    if st.session_state.mpn_value:
+        st.markdown(f'<div class="scanned-result">🏷️ Current MPN: <strong>{st.session_state.mpn_value}</strong></div>', 
+                   unsafe_allow_html=True)
+
+    # Form
+    with st.form("inventory_form"):
+        # SKU field with scanner button
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            sku = st.text_input("SKU*", value=st.session_state.sku_value, 
+                               placeholder="Enter SKU or use scanner")
+        with col2:
+            if st.form_submit_button("📷 Scan", key="scan_sku_btn"):
+                st.session_state.scanner_mode = 'sku'
+                st.rerun()
+
+        # Manufacturer Part Number field with scanner button  
+        col3, col4 = st.columns([4, 1])
         with col3:
-            mpn = st.text_input("Manufacturer Part Number", value=st.session_state.scanned_mpn, key="mpn_input")
+            mpn = st.text_input("Manufacturer Part Number", value=st.session_state.mpn_value,
+                               placeholder="Enter MPN or use scanner")
         with col4:
-            if st.button("📷 Scan MPN"):
-                st.session_state.show_mpn_scanner = True
+            if st.form_submit_button("📷 Scan", key="scan_mpn_btn"):
+                st.session_state.scanner_mode = 'mpn'
+                st.rerun()
 
         # Other fields
-        location = st.text_input("Location")
-        quantity = st.number_input("Quantity", min_value=0, value=0)
-        manufacturer = st.text_input("Manufacturer")
+        location = st.text_input("Location", placeholder="e.g., Warehouse A, Shelf 1")
+        quantity = st.number_input("Quantity", min_value=0, value=1, step=1)
+        manufacturer = st.text_input("Manufacturer", placeholder="e.g., Ford, Toyota, etc.")
+
+        # Clear buttons
+        col5, col6, col7 = st.columns([1, 1, 2])
+        with col5:
+            if st.form_submit_button("🗑️ Clear SKU", key="clear_sku"):
+                st.session_state.sku_value = ""
+                st.rerun()
+        with col6:
+            if st.form_submit_button("🗑️ Clear MPN", key="clear_mpn"):
+                st.session_state.mpn_value = ""
+                st.rerun()
 
         # Submit button
-        submitted = st.form_submit_button("Add to Inventory")
+        submitted = st.form_submit_button("➕ Add to Inventory", type="primary")
 
+        # Handle form submission
         if submitted:
-            if not sku:
-                st.error("SKU is required!")
+            if not sku.strip():
+                st.error("❌ SKU is required!")
             else:
                 data = {
-                    'sku': sku,
-                    'mpn': mpn,
-                    'location': location,
+                    'sku': sku.strip(),
+                    'mpn': mpn.strip(),
+                    'location': location.strip(),
                     'quantity': quantity,
-                    'manufacturer': manufacturer
+                    'manufacturer': manufacturer.strip()
                 }
+                
                 if insert_inventory_data(data):
-                    st.success("Data added successfully!")
-                    # Clear session state
-                    st.session_state.scanned_sku = ""
-                    st.session_state.scanned_mpn = ""
-
-    # Display scanners when needed
-    if st.session_state.get('show_sku_scanner'):
-        st.markdown("### SKU Scanner")
-        html(barcode_scanner_html("sku_input"), height=400)
-        if st.button("Close Scanner"):
-            st.session_state.show_sku_scanner = False
-            st.experimental_rerun()
-
-    if st.session_state.get('show_mpn_scanner'):
-        st.markdown("### MPN Scanner")
-        html(barcode_scanner_html("mpn_input"), height=400)
-        if st.button("Close Scanner"):
-            st.session_state.show_mpn_scanner = False
-            st.experimental_rerun()
-
-    # JavaScript to handle barcode scanning
-    st.markdown("""
-        <script>
-            window.addEventListener('message', function(event) {
-                if (event.data.type === 'streamlit:setComponentValue') {
-                    // Update the corresponding input field
-                    const input = document.querySelector(`input[data-testid="stTextInput"][aria-label="${event.data.target}"]`);
-                    if (input) {
-                        input.value = event.data.value;
-                        // Trigger input event to update Streamlit
-                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                    # Clear all values after successful submission
+                    st.session_state.sku_value = ""
+                    st.session_state.mpn_value = ""
+                    st.session_state.form_data = {
+                        'location': '',
+                        'quantity': 1,
+                        'manufacturer': ''
                     }
-                }
-            });
-        </script>
-    """, unsafe_allow_html=True)
+                    st.balloons()
+                    st.rerun()
+
+    # Instructions
+    with st.expander("📋 How to Use"):
+        st.markdown("""
+        **Step-by-step instructions:**
+        
+        1. **For SKU (Required):**
+           - Type manually in the SKU field, OR
+           - Click "📷 Scan" button to open barcode scanner
+           
+        2. **For MPN (Optional):**
+           - Type manually in the MPN field, OR  
+           - Click "📷 Scan" button to open barcode scanner
+           
+        3. **Scanning Process:**
+           - Allow camera access when prompted
+           - Point camera at barcode until it auto-detects
+           - Click "✅ Use This Code" to apply the scanned value
+           - Or click "🔄 Scan Another" to try again
+           
+        4. **Complete the form:**
+           - Fill in Location, Quantity, and Manufacturer
+           - Click "➕ Add to Inventory" to save
+           
+        **Supported barcode formats:** Code 128, Code 39, EAN, UPC
+        
+        **Your barcode type:** ✅ Compatible (Code 128)
+        """)
 
 if __name__ == "__main__":
-    main() 
+    main()
