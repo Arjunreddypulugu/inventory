@@ -35,7 +35,10 @@ export function openHtml5QrcodeModal({ onScan, onClose }) {
   closeBtn.style.border = 'none';
   closeBtn.style.fontSize = '1.5rem';
   closeBtn.style.cursor = 'pointer';
-  closeBtn.onclick = cleanup;
+  closeBtn.onclick = () => {
+    cleanup();
+    if (onClose) onClose();
+  };
 
   // Scanner div
   const scannerDiv = document.createElement('div');
@@ -58,29 +61,45 @@ export function openHtml5QrcodeModal({ onScan, onClose }) {
     async (decodedText) => {
       if (!scanned) {
         scanned = true;
-        await html5QrCode.stop();
-        await html5QrCode.clear();
-        cleanup();
-        if (onScan) onScan(decodedText);
+        try {
+          await html5QrCode.stop();
+          await html5QrCode.clear();
+          cleanup();
+          // Call onScan after cleanup to prevent any race conditions
+          if (onScan) onScan(decodedText);
+        } catch (error) {
+          console.error('Error during scan cleanup:', error);
+        }
       }
     },
-    (errorMessage) => {}
+    (errorMessage) => {
+      console.log('Scan error:', errorMessage);
+    }
   );
 
   function cleanup() {
     try {
-      html5QrCode.stop().catch(() => {});
-      html5QrCode.clear().catch(() => {});
-    } catch {}
-    if (modal.parentNode) modal.parentNode.removeChild(modal);
-    if (onClose) onClose();
+      if (html5QrCode) {
+        html5QrCode.stop().catch(() => {});
+        html5QrCode.clear().catch(() => {});
+      }
+    } catch (error) {
+      console.error('Error during cleanup:', error);
+    }
+    if (modal.parentNode) {
+      modal.parentNode.removeChild(modal);
+    }
   }
 
   // Allow closing with Escape key
   function escListener(e) {
-    if (e.key === 'Escape') cleanup();
+    if (e.key === 'Escape') {
+      cleanup();
+      if (onClose) onClose();
+    }
   }
   window.addEventListener('keydown', escListener);
+  
   // Remove listener on cleanup
   const origCleanup = cleanup;
   cleanup = function() {
