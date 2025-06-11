@@ -47,6 +47,14 @@ function App() {
     });
   }, [scanning, submitting]);
 
+  // Refined useEffect for SKU -> MPN jump only
+  useEffect(() => {
+    if (lastScannedField === 'SKU' && form.SKU && mpnRef.current) {
+      mpnRef.current.focus();
+      setLastScannedField(null);
+    }
+  }, [form.SKU, lastScannedField]);
+
   // Focus next field after scan
   useEffect(() => {
     if (lastScannedField === 'SKU' && mpnRef.current) {
@@ -107,8 +115,22 @@ function App() {
     }
   };
 
-  const downloadInventory = () => {
-    // Implementation of downloadInventory function
+  const downloadInventory = async () => {
+    try {
+      const res = await fetch(`${API_URL}/inventory/download`);
+      if (!res.ok) throw new Error('Failed to download');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'inventory_export.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Failed to download Excel file.' });
+    }
   };
 
   const isFormValid = form.SKU.trim() !== ''; // Basic validation
