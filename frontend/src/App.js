@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import axios from 'axios';
 import { openHtml5QrcodeModal } from './components/Html5QrcodeModal';
 
@@ -13,36 +13,54 @@ function App() {
     manufacturer: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [message, setMessage] = useState(null);
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
+  const handleChange = useCallback((e) => {
+    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  }, []);
 
-  const handleScanModal = (field) => {
+  const handleScanModal = useCallback((field) => {
+    if (scanning || submitting) return; // Prevent scanning while submitting or already scanning
+    
+    setScanning(true);
     openHtml5QrcodeModal({
       onScan: (value) => {
-        setForm((prev) => ({ ...prev, [field]: value }));
+        setForm(prev => ({ ...prev, [field]: value }));
         setMessage({ type: 'success', text: `${field} scanned and auto-filled!` });
+        setScanning(false);
       },
-      onClose: () => {},
+      onClose: () => {
+        setScanning(false);
+      },
     });
+  }, [scanning, submitting]);
+
+  const handleKeyDown = (e) => {
+    // Prevent Enter from submitting the form
+    if (e.key === 'Enter') {
+      e.preventDefault();
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (submitting) return;
+    if (submitting || scanning) return; // Prevent submission while scanning or already submitting
     
     setSubmitting(true);
     setMessage(null);
     
     try {
+      console.log('Submitting form:', form); // Debug log
       const res = await axios.post(`${API_URL}/inventory/add`, form);
+      console.log('Server response:', res.data); // Debug log
+      
       if (res.data.is_repeated === "yes") {
         setMessage({ type: 'warning', text: 'SKU already exists. Marked as repeated.' });
       } else {
         setMessage({ type: 'success', text: 'Item added successfully!' });
       }
+      // Only reset form after successful submission
       setForm({
         SKU: '',
         manufacturer_part_number: '',
@@ -51,12 +69,17 @@ function App() {
         manufacturer: '',
       });
     } catch (err) {
-      console.error('Error:', err);
-      setMessage({ type: 'error', text: 'Error adding item. Please try again.' });
+      console.error('Error submitting form:', err); // Debug log
+      setMessage({ 
+        type: 'error', 
+        text: err.response?.data?.detail || 'Error adding item. Please try again.' 
+      });
     } finally {
       setSubmitting(false);
     }
   };
+
+  const isFormValid = form.SKU.trim() !== ''; // Basic validation
 
   return (
     <div style={{ maxWidth: 500, margin: '2rem auto', padding: 24, background: '#f8f9fa', borderRadius: 12, boxShadow: '0 2px 8px #0001' }}>
@@ -68,16 +91,26 @@ function App() {
             name="SKU"
             value={form.SKU}
             onChange={handleChange}
+            onKeyDown={handleKeyDown}
             required
             style={{ flex: 1, padding: 8, fontSize: 16 }}
             placeholder="Scan or enter SKU"
+            disabled={scanning || submitting}
           />
           <button 
             type="button" 
             onClick={() => handleScanModal('SKU')} 
-            style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: 6 }}
+            disabled={scanning || submitting}
+            style={{ 
+              padding: '8px 16px', 
+              background: scanning ? '#6c757d' : '#28a745', 
+              color: '#fff', 
+              border: 'none', 
+              borderRadius: 6,
+              cursor: scanning || submitting ? 'not-allowed' : 'pointer'
+            }}
           >
-            Scan SKU
+            {scanning ? 'Scanning...' : 'Scan SKU'}
           </button>
         </div>
         <label>Manufacturer Part Number:</label>
@@ -86,15 +119,25 @@ function App() {
             name="manufacturer_part_number"
             value={form.manufacturer_part_number}
             onChange={handleChange}
+            onKeyDown={handleKeyDown}
             style={{ flex: 1, padding: 8, fontSize: 16 }}
             placeholder="Scan or enter MPN"
+            disabled={scanning || submitting}
           />
           <button 
             type="button" 
             onClick={() => handleScanModal('manufacturer_part_number')} 
-            style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: 6 }}
+            disabled={scanning || submitting}
+            style={{ 
+              padding: '8px 16px', 
+              background: scanning ? '#6c757d' : '#28a745', 
+              color: '#fff', 
+              border: 'none', 
+              borderRadius: 6,
+              cursor: scanning || submitting ? 'not-allowed' : 'pointer'
+            }}
           >
-            Scan MPN
+            {scanning ? 'Scanning...' : 'Scan MPN'}
           </button>
         </div>
         <label>Location:</label>
@@ -102,8 +145,10 @@ function App() {
           name="Location"
           value={form.Location}
           onChange={handleChange}
+          onKeyDown={handleKeyDown}
           style={{ width: '100%', padding: 8, fontSize: 16 }}
           placeholder="e.g., Warehouse A, Shelf 1"
+          disabled={scanning || submitting}
         />
         <label>Quantity:</label>
         <input
@@ -111,27 +156,53 @@ function App() {
           type="text"
           value={form.Quantity}
           onChange={handleChange}
+          onKeyDown={handleKeyDown}
           style={{ width: '100%', padding: 8, fontSize: 16 }}
           placeholder="Enter quantity"
+          disabled={scanning || submitting}
         />
         <label>Manufacturer:</label>
         <input
           name="manufacturer"
           value={form.manufacturer}
           onChange={handleChange}
+          onKeyDown={handleKeyDown}
           style={{ width: '100%', padding: 8, fontSize: 16 }}
           placeholder="e.g., Ford, Toyota, etc."
+          disabled={scanning || submitting}
         />
         <button
           type="submit"
-          disabled={submitting}
-          style={{ width: '100%', marginTop: 18, padding: 12, fontSize: 18, background: '#007bff', color: '#fff', border: 'none', borderRadius: 8 }}
+          disabled={submitting || scanning || !isFormValid}
+          style={{ 
+            width: '100%', 
+            marginTop: 18, 
+            padding: 12, 
+            fontSize: 18, 
+            background: !isFormValid ? '#6c757d' : '#007bff', 
+            color: '#fff', 
+            border: 'none', 
+            borderRadius: 8,
+            cursor: (submitting || scanning || !isFormValid) ? 'not-allowed' : 'pointer'
+          }}
         >
           {submitting ? 'Submitting...' : 'Add to Inventory'}
         </button>
       </form>
       {message && (
-        <div style={{ marginTop: 16, color: message.type === 'error' ? 'red' : message.type === 'warning' ? '#b8860b' : 'green', fontWeight: 600, textAlign: 'center' }}>
+        <div style={{ 
+          marginTop: 16, 
+          padding: 12,
+          borderRadius: 6,
+          backgroundColor: message.type === 'error' ? '#f8d7da' : 
+                          message.type === 'warning' ? '#fff3cd' : 
+                          '#d4edda',
+          color: message.type === 'error' ? '#721c24' : 
+                 message.type === 'warning' ? '#856404' : 
+                 '#155724',
+          fontWeight: 600, 
+          textAlign: 'center' 
+        }}>
           {message.text}
         </div>
       )}
