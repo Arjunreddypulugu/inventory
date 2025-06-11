@@ -2,18 +2,18 @@ from sqlalchemy.orm import Session
 from . import models
 
 def add_inventory_item(db: Session, item: models.InventoryItemCreate):
-    # Check if SKU exists
-    exists = db.query(models.InventoryItem).filter(models.InventoryItem.sku == item.sku).first()
-    is_repeated = bool(exists)
+    exists = db.query(models.InventoryItem).filter(models.InventoryItem.SKU == item.SKU).first()
+    if exists:
+        return {"is_repeated": "yes", "SKU": item.SKU}
     db_item = models.InventoryItem(
-        sku=item.sku,
+        SKU=item.SKU,
         manufacturer_part_number=item.manufacturer_part_number,
-        location=item.location,
-        quantity=item.quantity,
+        Location=item.Location,
+        Quantity=item.Quantity,
         manufacturer=item.manufacturer,
-        is_repeated=is_repeated
+        is_repeated="no"
     )
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
-    return db_item 
+    return {"is_repeated": "no", "SKU": db_item.SKU} 

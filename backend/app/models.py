@@ -1,22 +1,21 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, String, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from pydantic import BaseModel
 
 Base = declarative_base()
 
 class InventoryItem(Base):
-    __tablename__ = "inventory"
-    id = Column(Integer, primary_key=True, index=True)
-    sku = Column(String, index=True, nullable=False)
+    __tablename__ = "StockOfParts"
+    SKU = Column(String, primary_key=True, index=True)
     manufacturer_part_number = Column(String, nullable=True)
-    location = Column(String, nullable=True)
-    quantity = Column(Integer, nullable=True)
+    Location = Column(String, nullable=True)
+    Quantity = Column(Integer, nullable=True)
     manufacturer = Column(String, nullable=True)
-    is_repeated = Column(Boolean, default=False)
+    is_repeated = Column(String, default='no')
 
 class InventoryItemCreate(BaseModel):
-    sku: str
+    SKU: str
     manufacturer_part_number: str = ""
-    location: str = ""
-    quantity: int = 0
+    Location: str = ""
+    Quantity: int = 0
     manufacturer: str = "" 
