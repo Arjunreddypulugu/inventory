@@ -6,10 +6,10 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 function App() {
   const [form, setForm] = useState({
-    sku: '',
+    SKU: '',
     manufacturer_part_number: '',
-    location: '',
-    quantity: 1,
+    Location: '',
+    Quantity: '',
     manufacturer: '',
   });
   const [submitting, setSubmitting] = useState(false);
@@ -34,23 +34,21 @@ function App() {
     setSubmitting(true);
     setMessage(null);
     try {
-      const res = await axios.post(`${API_URL}/inventory/add`, {
-        ...form,
-        quantity: Number(form.quantity),
-      });
-      if (res.data.is_repeated) {
+      const res = await axios.post(`${API_URL}/inventory/add`, form);
+      if (res.data.is_repeated === "yes") {
         setMessage({ type: 'warning', text: 'SKU already exists. Marked as repeated.' });
       } else {
         setMessage({ type: 'success', text: 'Item added successfully!' });
       }
       setForm({
-        sku: '',
+        SKU: '',
         manufacturer_part_number: '',
-        location: '',
-        quantity: 1,
+        Location: '',
+        Quantity: '',
         manufacturer: '',
       });
     } catch (err) {
+      console.error('Error:', err);
       setMessage({ type: 'error', text: 'Error adding item. Please try again.' });
     }
     setSubmitting(false);
@@ -63,14 +61,14 @@ function App() {
         <label>SKU*:</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input
-            name="sku"
-            value={form.sku}
+            name="SKU"
+            value={form.SKU}
             onChange={handleChange}
             required
             style={{ flex: 1, padding: 8, fontSize: 16 }}
             placeholder="Scan or enter SKU"
           />
-          <button type="button" onClick={() => handleScanModal('sku')} style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: 6 }}>Scan SKU</button>
+          <button type="button" onClick={() => handleScanModal('SKU')} style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: 6 }}>Scan SKU</button>
         </div>
         <label>Manufacturer Part Number:</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -85,20 +83,20 @@ function App() {
         </div>
         <label>Location:</label>
         <input
-          name="location"
-          value={form.location}
+          name="Location"
+          value={form.Location}
           onChange={handleChange}
           style={{ width: '100%', padding: 8, fontSize: 16 }}
           placeholder="e.g., Warehouse A, Shelf 1"
         />
         <label>Quantity:</label>
         <input
-          name="quantity"
-          type="number"
-          min={1}
-          value={form.quantity}
+          name="Quantity"
+          type="text"
+          value={form.Quantity}
           onChange={handleChange}
           style={{ width: '100%', padding: 8, fontSize: 16 }}
+          placeholder="Enter quantity"
         />
         <label>Manufacturer:</label>
         <input
