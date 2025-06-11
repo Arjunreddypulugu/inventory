@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import BarcodeScanner from './components/BarcodeScanner';
+import { openHtml5QrcodeModal } from './components/Html5QrcodeModal';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
@@ -14,16 +14,19 @@ function App() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
-  const [openScanner, setOpenScanner] = useState(null); // null | 'sku' | 'mpn'
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleScan = (field) => (value) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-    setMessage({ type: 'success', text: `${field.toUpperCase()} scanned and auto-filled!` });
-    setOpenScanner(null); // Close scanner after scan
+  const handleScanModal = (field) => {
+    openHtml5QrcodeModal({
+      onScan: (value) => {
+        setForm((prev) => ({ ...prev, [field]: value }));
+        setMessage({ type: 'success', text: `${field.toUpperCase()} scanned and auto-filled!` });
+      },
+      onClose: () => {},
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -67,7 +70,7 @@ function App() {
             style={{ flex: 1, padding: 8, fontSize: 16 }}
             placeholder="Scan or enter SKU"
           />
-          <button type="button" onClick={() => setOpenScanner('sku')} style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: 6 }}>Scan SKU</button>
+          <button type="button" onClick={() => handleScanModal('sku')} style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: 6 }}>Scan SKU</button>
         </div>
         <label>Manufacturer Part Number:</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -78,7 +81,7 @@ function App() {
             style={{ flex: 1, padding: 8, fontSize: 16 }}
             placeholder="Scan or enter MPN"
           />
-          <button type="button" onClick={() => setOpenScanner('mpn')} style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: 6 }}>Scan MPN</button>
+          <button type="button" onClick={() => handleScanModal('manufacturer_part_number')} style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: 6 }}>Scan MPN</button>
         </div>
         <label>Location:</label>
         <input
@@ -113,12 +116,6 @@ function App() {
           {submitting ? 'Submitting...' : 'Add to Inventory'}
         </button>
       </form>
-      {openScanner === 'sku' && (
-        <BarcodeScanner onDetected={handleScan('sku')} onClose={() => setOpenScanner(null)} />
-      )}
-      {openScanner === 'mpn' && (
-        <BarcodeScanner onDetected={handleScan('manufacturer_part_number')} onClose={() => setOpenScanner(null)} />
-      )}
       {message && (
         <div style={{ marginTop: 16, color: message.type === 'error' ? 'red' : message.type === 'warning' ? '#b8860b' : 'green', fontWeight: 600, textAlign: 'center' }}>
           {message.text}
