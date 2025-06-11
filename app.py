@@ -399,7 +399,7 @@ def main():
             sku = st.text_input("SKU*", value=st.session_state.sku_value, 
                                placeholder="Enter SKU or use scanner")
         with col2:
-            if st.form_submit_button("📷 Scan", key="scan_sku_btn"):
+            if st.form_submit_button("📷 Scan SKU"):
                 st.session_state.scanner_mode = 'sku'
                 st.rerun()
 
@@ -409,7 +409,7 @@ def main():
             mpn = st.text_input("Manufacturer Part Number", value=st.session_state.mpn_value,
                                placeholder="Enter MPN or use scanner")
         with col4:
-            if st.form_submit_button("📷 Scan", key="scan_mpn_btn"):
+            if st.form_submit_button("📷 Scan MPN"):
                 st.session_state.scanner_mode = 'mpn'
                 st.rerun()
 
@@ -421,11 +421,11 @@ def main():
         # Clear buttons
         col5, col6, col7 = st.columns([1, 1, 2])
         with col5:
-            if st.form_submit_button("🗑️ Clear SKU", key="clear_sku"):
+            if st.form_submit_button("🗑️ Clear SKU"):
                 st.session_state.sku_value = ""
                 st.rerun()
         with col6:
-            if st.form_submit_button("🗑️ Clear MPN", key="clear_mpn"):
+            if st.form_submit_button("🗑️ Clear MPN"):
                 st.session_state.mpn_value = ""
                 st.rerun()
 
@@ -449,11 +449,6 @@ def main():
                     # Clear all values after successful submission
                     st.session_state.sku_value = ""
                     st.session_state.mpn_value = ""
-                    st.session_state.form_data = {
-                        'location': '',
-                        'quantity': 1,
-                        'manufacturer': ''
-                    }
                     st.balloons()
                     st.rerun()
 
