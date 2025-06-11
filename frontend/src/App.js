@@ -114,14 +114,10 @@ function App() {
         </button>
       </form>
       {openScanner === 'sku' && (
-        <div style={{ margin: '1rem 0' }}>
-          <BarcodeScanner onDetected={handleScan('sku')} label="SKU" />
-        </div>
+        <BarcodeScanner onDetected={handleScan('sku')} />
       )}
       {openScanner === 'mpn' && (
-        <div style={{ margin: '1rem 0' }}>
-          <BarcodeScanner onDetected={handleScan('manufacturer_part_number')} label="MPN" />
-        </div>
+        <BarcodeScanner onDetected={handleScan('manufacturer_part_number')} />
       )}
       {message && (
         <div style={{ marginTop: 16, color: message.type === 'error' ? 'red' : message.type === 'warning' ? '#b8860b' : 'green', fontWeight: 600, textAlign: 'center' }}>
