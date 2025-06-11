@@ -1,61 +1,40 @@
-import React, { useRef, useEffect } from 'react';
-import Quagga from '@ericblade/quagga2';
+import React, { useEffect, useRef } from 'react';
+import { Html5Qrcode } from 'html5-qrcode';
 
 const BarcodeScanner = ({ onDetected }) => {
   const scannerRef = useRef(null);
+  const html5QrCodeRef = useRef(null);
 
   useEffect(() => {
     if (!scannerRef.current) return;
 
-    Quagga.init({
-      inputStream: {
-        type: "LiveStream",
-        target: scannerRef.current,
-        constraints: {
-          facingMode: "environment"
-        }
-      },
-      decoder: {
-        readers: [
-          "code_128_reader",
-          "ean_reader",
-          "ean_8_reader",
-          "code_39_reader",
-          "code_39_vin_reader",
-          "codabar_reader",
-          "upc_reader",
-          "upc_e_reader",
-          "i2of5_reader",
-          "2of5_reader",
-          "code_93_reader"
-        ]
-      },
-      locate: true,
-      numOfWorkers: 1,
-      frequency: 10
-    }, (err) => {
-      if (err) {
-        console.error(err);
-        return;
-      }
-      Quagga.start();
-    });
+    html5QrCodeRef.current = new Html5Qrcode(scannerRef.current.id);
 
-    Quagga.onDetected(data => {
-      if (data && data.codeResult && data.codeResult.code) {
-        onDetected(data.codeResult.code);
-        Quagga.stop();
+    html5QrCodeRef.current.start(
+      { facingMode: "environment" },
+      {
+        fps: 10,
+        qrbox: { width: 300, height: 200 }
+      },
+      (decodedText) => {
+        onDetected(decodedText);
+        html5QrCodeRef.current.stop();
+      },
+      (errorMessage) => {
+        // ignore errors for now
       }
-    });
+    );
 
     return () => {
-      Quagga.stop();
-      Quagga.offDetected();
+      if (html5QrCodeRef.current) {
+        html5QrCodeRef.current.stop().catch(() => {});
+        html5QrCodeRef.current.clear();
+      }
     };
   }, [onDetected]);
 
   return (
-    <div ref={scannerRef} style={{ width: '100%', height: 320, margin: '1rem 0' }} />
+    <div id="reader" ref={scannerRef} style={{ width: '100%', height: 320, margin: '1rem 0' }} />
   );
 };
 
