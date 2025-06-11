@@ -3,4 +3,5 @@ uvicorn
 sqlalchemy
 pymssql
 python-dotenv
-pandas 
+pandas
+openpyxl 

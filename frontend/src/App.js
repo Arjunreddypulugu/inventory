@@ -50,10 +50,13 @@ function App() {
   // Refined useEffect for SKU -> MPN jump only
   useEffect(() => {
     if (lastScannedField === 'SKU' && form.SKU && mpnRef.current) {
+      console.log('Attempting to focus MPN after SKU scan');
+      mpnRef.current.focus(); // Immediate attempt
       setTimeout(() => {
+        console.log('Delayed focus on MPN after SKU scan');
         mpnRef.current.focus();
         setLastScannedField(null);
-      }, 100);
+      }, 200);
     }
   }, [form.SKU, lastScannedField]);
 
