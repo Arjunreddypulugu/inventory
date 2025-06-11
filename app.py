@@ -302,7 +302,7 @@ def barcode_scanner_component(key_suffix=""):
     """
     
     # Return the HTML component and capture its return value
-    return html(scanner_html, height=500, key=f"barcode_scanner_{key_suffix}")
+    return html(scanner_html, height=500)
 
 # Initialize session state
 def init_session_state():
