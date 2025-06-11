@@ -23,7 +23,7 @@ function App() {
     openHtml5QrcodeModal({
       onScan: (value) => {
         setForm((prev) => ({ ...prev, [field]: value }));
-        setMessage({ type: 'success', text: `${field.toUpperCase()} scanned and auto-filled!` });
+        setMessage({ type: 'success', text: `${field} scanned and auto-filled!` });
       },
       onClose: () => {},
     });
@@ -31,8 +31,11 @@ function App() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
+    
     setSubmitting(true);
     setMessage(null);
+    
     try {
       const res = await axios.post(`${API_URL}/inventory/add`, form);
       if (res.data.is_repeated === "yes") {
@@ -50,8 +53,9 @@ function App() {
     } catch (err) {
       console.error('Error:', err);
       setMessage({ type: 'error', text: 'Error adding item. Please try again.' });
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
   };
 
   return (
@@ -68,7 +72,13 @@ function App() {
             style={{ flex: 1, padding: 8, fontSize: 16 }}
             placeholder="Scan or enter SKU"
           />
-          <button type="button" onClick={() => handleScanModal('SKU')} style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: 6 }}>Scan SKU</button>
+          <button 
+            type="button" 
+            onClick={() => handleScanModal('SKU')} 
+            style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: 6 }}
+          >
+            Scan SKU
+          </button>
         </div>
         <label>Manufacturer Part Number:</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -79,7 +89,13 @@ function App() {
             style={{ flex: 1, padding: 8, fontSize: 16 }}
             placeholder="Scan or enter MPN"
           />
-          <button type="button" onClick={() => handleScanModal('manufacturer_part_number')} style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: 6 }}>Scan MPN</button>
+          <button 
+            type="button" 
+            onClick={() => handleScanModal('manufacturer_part_number')} 
+            style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: 6 }}
+          >
+            Scan MPN
+          </button>
         </div>
         <label>Location:</label>
         <input
