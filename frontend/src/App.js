@@ -4,11 +4,6 @@ import { openHtml5QrcodeModal } from './components/Html5QrcodeModal';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
-const appendDebug = (msg) => {
-  const el = document.getElementById('debug-log');
-  if (el) el.innerText += msg + '\n';
-};
-
 function App() {
   const [form, setForm] = useState({
     SKU: '',
@@ -45,9 +40,7 @@ function App() {
         setMessage({ type: 'success', text: `${field} scanned and auto-filled!` });
         setScanning(false);
         if (field === 'SKU' && mpnRef.current) {
-          appendDebug('Direct: Attempting to focus MPN after SKU scan');
           setTimeout(() => {
-            appendDebug('Direct: Delayed focus on MPN after SKU scan');
             mpnRef.current.focus();
           }, 200);
         }
@@ -62,11 +55,9 @@ function App() {
   useEffect(() => {
     if (lastScannedField === 'SKU' && form.SKU && mpnRef.current) {
       console.log('Attempting to focus MPN after SKU scan');
-      appendDebug('Attempting to focus MPN after SKU scan');
       mpnRef.current.focus(); // Immediate attempt
       setTimeout(() => {
         console.log('Delayed focus on MPN after SKU scan');
-        appendDebug('Delayed focus on MPN after SKU scan');
         mpnRef.current.focus();
         setLastScannedField(null);
       }, 200);
@@ -300,7 +291,6 @@ function App() {
           {message.text}
         </div>
       )}
-      <div id="debug-log" style={{whiteSpace: 'pre', background: '#eee', color: '#333', padding: 8, marginTop: 12, borderRadius: 4, fontSize: 12}}></div>
     </div>
   );
 }
