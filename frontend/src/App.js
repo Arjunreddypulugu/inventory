@@ -14,6 +14,7 @@ function App() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
+  const [openScanner, setOpenScanner] = useState(null); // null | 'sku' | 'mpn'
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -22,6 +23,7 @@ function App() {
   const handleScan = (field) => (value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setMessage({ type: 'success', text: `${field.toUpperCase()} scanned and auto-filled!` });
+    setOpenScanner(null); // Close scanner after scan
   };
 
   const handleSubmit = async (e) => {
@@ -65,7 +67,7 @@ function App() {
             style={{ flex: 1, padding: 8, fontSize: 16 }}
             placeholder="Scan or enter SKU"
           />
-          <BarcodeScanner onDetected={handleScan('sku')} label="SKU" />
+          <button type="button" onClick={() => setOpenScanner('sku')} style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: 6 }}>Scan SKU</button>
         </div>
         <label>Manufacturer Part Number:</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -76,7 +78,7 @@ function App() {
             style={{ flex: 1, padding: 8, fontSize: 16 }}
             placeholder="Scan or enter MPN"
           />
-          <BarcodeScanner onDetected={handleScan('manufacturer_part_number')} label="MPN" />
+          <button type="button" onClick={() => setOpenScanner('mpn')} style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: 6 }}>Scan MPN</button>
         </div>
         <label>Location:</label>
         <input
@@ -111,6 +113,16 @@ function App() {
           {submitting ? 'Submitting...' : 'Add to Inventory'}
         </button>
       </form>
+      {openScanner === 'sku' && (
+        <div style={{ margin: '1rem 0' }}>
+          <BarcodeScanner onDetected={handleScan('sku')} label="SKU" />
+        </div>
+      )}
+      {openScanner === 'mpn' && (
+        <div style={{ margin: '1rem 0' }}>
+          <BarcodeScanner onDetected={handleScan('manufacturer_part_number')} label="MPN" />
+        </div>
+      )}
       {message && (
         <div style={{ marginTop: 16, color: message.type === 'error' ? 'red' : message.type === 'warning' ? '#b8860b' : 'green', fontWeight: 600, textAlign: 'center' }}>
           {message.text}
