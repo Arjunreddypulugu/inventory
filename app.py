@@ -35,11 +35,11 @@ st.markdown("""
 def init_connection():
     try:
         conn = pyodbc.connect(
-            f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-            f"SERVER={os.getenv('DB_SERVER')};"
-            f"DATABASE={os.getenv('DB_NAME')};"
-            f"UID={os.getenv('DB_USER')};"
-            f"PWD={os.getenv('DB_PASSWORD')}"
+            f"DRIVER={{{st.secrets['database']['driver']}}};"
+            f"SERVER={st.secrets['database']['db_server']};"
+            f"DATABASE={st.secrets['database']['db_database']};"
+            f"UID={st.secrets['database']['db_username']};"
+            f"PWD={st.secrets['database']['db_password']}"
         )
         return conn
     except Exception as e:
@@ -95,8 +95,8 @@ def insert_inventory_data(data):
         conn = init_connection()
         if conn:
             cursor = conn.cursor()
-            query = """
-            INSERT INTO inventory (SKU, Manufacturer_Part_Number, Location, Quantity, Manufacturer, is_repeated)
+            query = f"""
+            INSERT INTO {st.secrets['database']['db_table']} (SKU, Manufacturer_Part_Number, Location, Quantity, Manufacturer, is_repeated)
             VALUES (?, ?, ?, ?, ?, ?)
             """
             cursor.execute(query, (
