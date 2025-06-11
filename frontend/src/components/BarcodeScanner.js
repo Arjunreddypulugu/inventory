@@ -18,7 +18,6 @@ const BarcodeScanner = ({ onDetected }) => {
       },
       (decodedText) => {
         onDetected(decodedText);
-        html5QrCodeRef.current.stop();
       },
       (errorMessage) => {
         // ignore errors for now
