@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import BarcodeScannerComponent from 'react-qr-barcode-scanner';
+import BarcodeReader from 'react-barcode-reader';
 
 const BarcodeScanner = ({ onDetected, label }) => {
   const [scanning, setScanning] = useState(false);
@@ -16,15 +16,13 @@ const BarcodeScanner = ({ onDetected, label }) => {
       </button>
       {scanning && (
         <div style={{ margin: '1rem auto', maxWidth: 400 }}>
-          <BarcodeScannerComponent
-            width={350}
-            height={250}
-            onUpdate={(err, result) => {
-              if (err) setError('Camera error or permission denied');
+          <BarcodeReader
+            onError={err => setError('Camera error or permission denied')}
+            onScan={result => {
               if (result) {
                 setScanning(false);
                 setError(null);
-                onDetected(result.text);
+                onDetected(result);
               }
             }}
           />
