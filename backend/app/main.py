@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from . import models, crud, db
 from fastapi.responses import FileResponse
 import pandas as pd
@@ -33,8 +34,8 @@ def add_inventory(item: models.InventoryItemCreate, database: Session = Depends(
 @app.get("/inventory/download")
 def download_inventory(database: Session = Depends(get_db)):
     # Query all rows
-    items = database.execute("SELECT * FROM StockOfParts").fetchall()
-    columns = [col[0] for col in database.execute("SELECT * FROM StockOfParts").cursor.description]
+    items = database.execute(text("SELECT * FROM StockOfParts")).fetchall()
+    columns = [col[0] for col in database.execute(text("SELECT * FROM StockOfParts")).cursor.description]
     df = pd.DataFrame(items, columns=columns)
     file_path = "inventory_export.xlsx"
     df.to_excel(file_path, index=False)
