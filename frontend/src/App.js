@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { openHtml5QrcodeModal } from './components/Html5QrcodeModal';
 
@@ -16,19 +16,33 @@ function App() {
   const [scanning, setScanning] = useState(false);
   const [message, setMessage] = useState(null);
 
+  const skuRef = useRef(null);
+  const mpnRef = useRef(null);
+  const locationRef = useRef(null);
+  const quantityRef = useRef(null);
+  const manufacturerRef = useRef(null);
+
+  useEffect(() => {
+    if (skuRef.current) skuRef.current.focus();
+  }, []);
+
   const handleChange = useCallback((e) => {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
   }, []);
 
   const handleScanModal = useCallback((field) => {
-    if (scanning || submitting) return; // Prevent scanning while submitting or already scanning
-    
+    if (scanning || submitting) return;
     setScanning(true);
     openHtml5QrcodeModal({
       onScan: (value) => {
         setForm(prev => ({ ...prev, [field]: value }));
         setMessage({ type: 'success', text: `${field} scanned and auto-filled!` });
         setScanning(false);
+        // Move focus to next field
+        if (field === 'SKU' && mpnRef.current) mpnRef.current.focus();
+        else if (field === 'manufacturer_part_number' && locationRef.current) locationRef.current.focus();
+        else if (field === 'Location' && quantityRef.current) quantityRef.current.focus();
+        else if (field === 'Quantity' && manufacturerRef.current) manufacturerRef.current.focus();
       },
       onClose: () => {
         setScanning(false);
@@ -79,6 +93,10 @@ function App() {
     }
   };
 
+  const downloadInventory = () => {
+    // Implementation of downloadInventory function
+  };
+
   const isFormValid = form.SKU.trim() !== ''; // Basic validation
 
   return (
@@ -88,6 +106,7 @@ function App() {
         <label>SKU*:</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input
+            ref={skuRef}
             name="SKU"
             value={form.SKU}
             onChange={handleChange}
@@ -116,6 +135,7 @@ function App() {
         <label>Manufacturer Part Number:</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input
+            ref={mpnRef}
             name="manufacturer_part_number"
             value={form.manufacturer_part_number}
             onChange={handleChange}
@@ -142,6 +162,7 @@ function App() {
         </div>
         <label>Location:</label>
         <input
+          ref={locationRef}
           name="Location"
           value={form.Location}
           onChange={handleChange}
@@ -152,6 +173,7 @@ function App() {
         />
         <label>Quantity:</label>
         <input
+          ref={quantityRef}
           name="Quantity"
           type="text"
           value={form.Quantity}
@@ -163,6 +185,7 @@ function App() {
         />
         <label>Manufacturer:</label>
         <input
+          ref={manufacturerRef}
           name="manufacturer"
           value={form.manufacturer}
           onChange={handleChange}
@@ -187,6 +210,23 @@ function App() {
           }}
         >
           {submitting ? 'Submitting...' : 'Add to Inventory'}
+        </button>
+        <button
+          type="button"
+          onClick={downloadInventory}
+          style={{
+            width: '100%',
+            marginTop: 18,
+            padding: 12,
+            fontSize: 18,
+            background: '#17a2b8',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 8,
+            cursor: 'pointer',
+          }}
+        >
+          Download Inventory (Excel)
         </button>
       </form>
       {message && (
