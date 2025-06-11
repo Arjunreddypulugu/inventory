@@ -42,9 +42,15 @@ function App() {
     openHtml5QrcodeModal({
       onScan: (value) => {
         setForm(prev => ({ ...prev, [field]: value }));
-        setLastScannedField(field);
         setMessage({ type: 'success', text: `${field} scanned and auto-filled!` });
         setScanning(false);
+        if (field === 'SKU' && mpnRef.current) {
+          appendDebug('Direct: Attempting to focus MPN after SKU scan');
+          setTimeout(() => {
+            appendDebug('Direct: Delayed focus on MPN after SKU scan');
+            mpnRef.current.focus();
+          }, 200);
+        }
       },
       onClose: () => {
         setScanning(false);
