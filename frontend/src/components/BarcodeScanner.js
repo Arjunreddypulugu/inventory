@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 
-const BarcodeScanner = ({ onDetected }) => {
+const BarcodeScanner = ({ onDetected, onClose }) => {
   const scannerRef = useRef(null);
   const html5QrCodeRef = useRef(null);
   const [scanned, setScanned] = useState(false);
@@ -19,15 +19,14 @@ const BarcodeScanner = ({ onDetected }) => {
       },
       async (decodedText) => {
         if (!scanned) {
-          setScanned(true); // Prevent multiple triggers
+          setScanned(true);
           await html5QrCodeRef.current.stop();
           await html5QrCodeRef.current.clear();
           onDetected(decodedText);
+          if (onClose) onClose();
         }
       },
-      (errorMessage) => {
-        // ignore errors for now
-      }
+      (errorMessage) => {}
     );
 
     return () => {

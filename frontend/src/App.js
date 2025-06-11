@@ -114,10 +114,10 @@ function App() {
         </button>
       </form>
       {openScanner === 'sku' && (
-        <BarcodeScanner onDetected={handleScan('sku')} />
+        <BarcodeScanner onDetected={handleScan('sku')} onClose={() => setOpenScanner(null)} />
       )}
       {openScanner === 'mpn' && (
-        <BarcodeScanner onDetected={handleScan('manufacturer_part_number')} />
+        <BarcodeScanner onDetected={handleScan('manufacturer_part_number')} onClose={() => setOpenScanner(null)} />
       )}
       {message && (
         <div style={{ marginTop: 16, color: message.type === 'error' ? 'red' : message.type === 'warning' ? '#b8860b' : 'green', fontWeight: 600, textAlign: 'center' }}>
