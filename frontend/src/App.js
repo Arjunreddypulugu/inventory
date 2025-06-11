@@ -15,6 +15,7 @@ function App() {
   const [submitting, setSubmitting] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [message, setMessage] = useState(null);
+  const [lastScannedField, setLastScannedField] = useState(null);
 
   const skuRef = useRef(null);
   const mpnRef = useRef(null);
@@ -36,19 +37,32 @@ function App() {
     openHtml5QrcodeModal({
       onScan: (value) => {
         setForm(prev => ({ ...prev, [field]: value }));
+        setLastScannedField(field);
         setMessage({ type: 'success', text: `${field} scanned and auto-filled!` });
         setScanning(false);
-        // Move focus to next field
-        if (field === 'SKU' && mpnRef.current) mpnRef.current.focus();
-        else if (field === 'manufacturer_part_number' && locationRef.current) locationRef.current.focus();
-        else if (field === 'Location' && quantityRef.current) quantityRef.current.focus();
-        else if (field === 'Quantity' && manufacturerRef.current) manufacturerRef.current.focus();
       },
       onClose: () => {
         setScanning(false);
       },
     });
   }, [scanning, submitting]);
+
+  // Focus next field after scan
+  useEffect(() => {
+    if (lastScannedField === 'SKU' && mpnRef.current) {
+      mpnRef.current.focus();
+      setLastScannedField(null);
+    } else if (lastScannedField === 'manufacturer_part_number' && locationRef.current) {
+      locationRef.current.focus();
+      setLastScannedField(null);
+    } else if (lastScannedField === 'Location' && quantityRef.current) {
+      quantityRef.current.focus();
+      setLastScannedField(null);
+    } else if (lastScannedField === 'Quantity' && manufacturerRef.current) {
+      manufacturerRef.current.focus();
+      setLastScannedField(null);
+    }
+  }, [form, lastScannedField]);
 
   const handleKeyDown = (e) => {
     // Prevent Enter from submitting the form
